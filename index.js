@@ -365,46 +365,54 @@ const getParticipants = async function (isSandbox) {
     },
   }
 
-  const response = await fetch(url.toString(), options).catch((reason) => {
-    logger.error({ message: 'Ошибка Fetch', reason: reason, response: response })
+  const participants = []
+  let response
+  let page = 1
+  do {
+    url.searchParams.set('page', page.toString())
+    response = await fetch(url.toString(), options).catch((reason) => {
+      logger.error({ message: 'Ошибка Fetch', reason: reason, response: response })
 
-    throw {
-      statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Headers': '*'
-      },
-      body: JSON.stringify({ errors: [{ message: 'Failed to fetch' }] })
+      throw {
+        statusCode: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Headers': '*'
+        },
+        body: JSON.stringify({ errors: [{ message: 'Failed to fetch' }] })
+      }
+    })
+
+    const data = await response.json().catch((reason) => {
+      logger.error({ message: 'Ошибка парсинга ответа', reason: reason, response: response })
+
+      throw {
+        statusCode: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Headers': '*'
+        },
+        body: JSON.stringify({ errors: [{ message: 'Failed to parse JSON' }] })
+      }
+    })
+
+    if (!response.ok) {
+      logger.error({ message: 'Ответ от сервера не был успешным', response: response })
+
+      throw {
+        statusCode: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Headers': '*'
+        },
+        body: JSON.stringify({ errors: data.message })
+      }
     }
-  })
 
-  const data = await response.json().catch((reason) => {
-    logger.error({ message: 'Ошибка парсинга ответа', reason: reason, response: response })
+    participants.push(...data)
+  } while (page++ < response.headers.get('x-pagination-page-count'))
 
-    throw {
-      statusCode: response.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Headers': '*'
-      },
-      body: JSON.stringify({ errors: [{ message: 'Failed to parse JSON' }] })
-    }
-  })
-
-  if (!response.ok) {
-    logger.error({ message: 'Ответ от сервера не был успешным', response: response })
-
-    throw {
-      statusCode: response.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Headers': '*'
-      },
-      body: JSON.stringify({ errors: data.message })
-    }
-  }
-
-  return data
+  return participants
 }
 
 const registerParticipants = async function (origin, isSandbox, data) {
